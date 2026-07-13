@@ -1,0 +1,35 @@
+# AURIX Development Studio / TASKING 构建目录
+/Debug/
+/Release/
+**/Debug/
+**/Release/
+
+# TASKING 编译与链接产物
+*.o
+*.obj
+*.src
+*.d
+*.elf
+*.hex
+*.map
+*.mdf
+*.siz
+*.opt
+
+# ADS、调试器与 Eclipse 本机状态
+/.ads/
+.metadata/
+
+# 编辑器和操作系统临时文件
+.vscode/
+.idea/
+*.user
+*.tmp
+*.bak
+*.swp
+Thumbs.db
+.DS_Store
+
+# 脚本缓存
+__pycache__/
+*.py[cod]
