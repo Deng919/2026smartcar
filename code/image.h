@@ -23,6 +23,10 @@ extern uint8 right_jidian;
 extern uint8 left_line_list[MT9V03X_H];
 extern uint8 right_line_list[MT9V03X_H];
 extern uint8 mid_line_list[MT9V03X_H];
+/** 当前帧各行边线是否通过围栏与相邻赛道过滤。 */
+extern uint8 line_valid_list[MT9V03X_H];
+/** 当前帧搜线范围内通过过滤的有效行数量。 */
+extern uint8 line_valid_count;
 /** 当前帧由 Otsu 方法计算得到的灰度阈值。 */
 extern uint8 img_threshold;
 /** 多行加权并滤波后的最终中线横坐标，供舵机和电机控制使用。 */

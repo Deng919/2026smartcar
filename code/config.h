@@ -24,6 +24,11 @@
 #define CONFIG_MID_WIDTH                  93
 /* 图像二值化时，前 40 行使用的额外阈值偏移。 */
 #define CONFIG_THRESHOLD_OFFSET           40
+/* 围栏与相邻赛道过滤：限制内部黑缝、行间跳变和整帧最低可信行数。 */
+#define CONFIG_LINE_MAX_BLACK_GAP         3
+#define CONFIG_LINE_MAX_MID_JUMP          6
+#define CONFIG_LINE_MAX_WIDTH_JUMP        12
+#define CONFIG_LINE_MIN_VALID_ROWS        6
 
 /* ==================== 舵机参数 ==================== */
 /* 舵机 PWM 中值，以及允许使用的 PWM 范围。 */
