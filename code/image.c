@@ -19,15 +19,6 @@ uint8 right_jidian;
 uint8 left_line_list[MT9V03X_H];
 uint8 right_line_list[MT9V03X_H];
 uint8 mid_line_list[MT9V03X_H];
-/** 当前帧每行候选边线的可信标志；无效行不会参与最终中线计算。 */
-uint8 line_valid_list[MT9V03X_H];
-/** 当前帧通过候选验证的有效行数量。 */
-uint8 line_valid_count;
-/** 上一帧的左右边线，用于锁定当前赛道并拒绝相邻赛道。 */
-static uint8 previous_left_line_list[MT9V03X_H];
-static uint8 previous_right_line_list[MT9V03X_H];
-/** 已获得足够可信历史后置位；仅复位或模块重新初始化时清零。 */
-static uint8 track_history_ready;
 /** KEY_2 控制的 TFT 显示标志；中断修改，主循环读取。 */
 volatile uint8 image_display_enable = 1;
 
@@ -321,88 +312,6 @@ float Limit_float(float a,float b,float c)
     return 0;
 }
 
-/* LINE_FILTER_TEST_BEGIN */
-/** 返回两个无符号坐标的绝对差，避免直接相减产生下溢。 */
-static uint8 line_abs_diff(uint8 first, uint8 second)
-{
-    return first >= second ? first - second : second - first;
-}
-
-/**
- * @brief 判断一行左右边线是否仍属于当前锁定赛道。
- * @param row 当前二值图像行，0 为黑色，255 为白色。
- * @param left 候选左边线。
- * @param right 候选右边线。
- * @param reference_left 参考左边线。
- * @param reference_right 参考右边线。
- * @param use_reference 是否检查候选相对参考线的中点和宽度跳变。
- * @return 1 表示候选可信，0 表示候选可能跨过围栏或跳到相邻赛道。
- */
-static uint8 line_candidate_is_valid(
-    const uint8 *row,
-    uint8 left,
-    uint8 right,
-    uint8 reference_left,
-    uint8 reference_right,
-    uint8 use_reference)
-{
-    uint8 black_run = 0;
-    uint8 candidate_mid;
-    uint8 reference_mid;
-    uint8 candidate_width;
-    uint8 reference_width;
-
-    /* 留出左右各一个像素，保证搜线邻域访问不会越界。 */
-    if(left < 1 || right > MT9V03X_W - 2 || left >= right)
-    {
-        return 0;
-    }
-
-    /* 正常赛道内部应基本连续为白色，连续黑缝过长说明候选跨越了围栏间隔。 */
-    for(uint8 column = left; column <= right; column++)
-    {
-        if(row[column] == 0)
-        {
-            black_run++;
-            if(black_run > CONFIG_LINE_MAX_BLACK_GAP)
-            {
-                return 0;
-            }
-        }
-        else
-        {
-            black_run = 0;
-        }
-    }
-
-    if(!use_reference)
-    {
-        return 1;
-    }
-
-    if(reference_left < 1 || reference_right > MT9V03X_W - 2 || reference_left >= reference_right)
-    {
-        return 0;
-    }
-
-    candidate_mid = (left + right) / 2;
-    reference_mid = (reference_left + reference_right) / 2;
-    candidate_width = right - left;
-    reference_width = reference_right - reference_left;
-
-    /* 中点突跳通常是误锁相邻赛道；宽度突跳通常是把围栏和赛道合成了一条线。 */
-    if(line_abs_diff(candidate_mid, reference_mid) > CONFIG_LINE_MAX_MID_JUMP)
-    {
-        return 0;
-    }
-    if(line_abs_diff(candidate_width, reference_width) > CONFIG_LINE_MAX_WIDTH_JUMP)
-    {
-        return 0;
-    }
-    return 1;
-}
-/* LINE_FILTER_TEST_END */
-
 /* ==================== 逐行边线跟踪 ==================== */
 
 /**
@@ -414,51 +323,27 @@ static uint8 line_candidate_is_valid(
  */
 void image_deal(uint8 index[MT9V03X_H][MT9V03X_W])
 {
-    uint8 left_point;
-    uint8 right_point;
-    uint8 current_reference_left = left_jidian;
-    uint8 current_reference_right = right_jidian;
-    uint8 current_reference_ready = 0;
-
-    /* 每帧重新统计可信行；锁定状态和上一帧边线历史继续保留。 */
-    line_valid_count = 0;
-    for(uint8 i = 0; i < MT9V03X_H; i++)
-    {
-        line_valid_list[i] = 0;
-    }
-
-    /* 首次识别从极点起步；锁定后从上一帧同一赛道的起始行继续搜索。 */
-    if(track_history_ready)
-    {
-        left_point = previous_left_line_list[CONFIG_SEARCH_START_LINE - 1];
-        right_point = previous_right_line_list[CONFIG_SEARCH_START_LINE - 1];
-    }
-    else
-    {
-        left_point = left_jidian;
-        right_point = right_jidian;
-    }
-
-    for(uint8 i = CONFIG_SEARCH_START_LINE - 1; i > CONFIG_SEARCH_END_LINE; i--)
+    uint8 left_point = left_jidian;
+    uint8 right_point = right_jidian;
+    for(uint8 i = CONFIG_SEARCH_START_LINE-1;i>CONFIG_SEARCH_END_LINE ; i--)
     {
         uint8 left_search_judge = 0;
         uint8 mid_start_left_search_judge = 0;
         uint8 left_found = 0;
         uint8 right_found = 0;
-        uint8 row_valid = 0;
 
-        /* 左边线先在上一可信位置附近搜索。 */
-        for(uint8 j = left_point; j < left_point + CONFIG_LEFT_SEARCH_RIGHT; j++)
+        /* 左边线先向右搜索，未找到时再向左和图像中心回退搜索。 */
+        for(uint8 j = left_point; j < left_point+CONFIG_LEFT_SEARCH_RIGHT; j++)
         {
-            if(index[i][j - 1] == 0 && index[i][j] == 255 && index[i][j + 1] == 255)
+            if(index[i][j-1]==0 && index[i][j]==255 && index[i][j+1]==255)
             {
                 left_point = j;
                 left_found = 1;
                 break;
             }
-            else if(j == MT9V03X_W - 2)
+            else if(j == MT9V03X_W-2)
             {
-                left_point = MT9V03X_W - 5;
+                left_point = MT9V03X_W-5;
                 break;
             }
             else if(j == left_point + CONFIG_LEFT_SEARCH_RIGHT - 1)
@@ -469,168 +354,133 @@ void image_deal(uint8 index[MT9V03X_H][MT9V03X_W])
         }
         if(left_search_judge == 1)
         {
-            for(uint8 j = left_point; j > left_point - CONFIG_LEFT_SEARCH_LEFT; j--)
-            {
-                if(index[i][j - 1] == 0 && index[i][j] == 255 && index[i][j + 1] == 255 && j < MT9V03X_W - 5)
-                {
-                    left_point = j;
-                    left_found = 1;
-                    break;
-                }
-                else if(j == 1)
-                {
-                    left_point = 1;
-                    mid_start_left_search_judge = 1;
-                    break;
-                }
-                else if(j == left_point - CONFIG_LEFT_SEARCH_LEFT + 1)
-                {
-                    mid_start_left_search_judge = 1;
-                    break;
-                }
-            }
+                    for(uint8 j = left_point; j > left_point-CONFIG_LEFT_SEARCH_LEFT; j--)
+                    {
+                        if(index[i][j-1]==0 && index[i][j]==255 && index[i][j+1]==255 && j<MT9V03X_W - 5)
+                        {
+                            left_point = j;
+                            left_found = 1;
+                            break;
+                        }
+                        else if(j == 1)
+                        {
+                            left_point = 1;
+                            mid_start_left_search_judge = 1;
+                            break;
+                        }
+                        else if(j == left_point - CONFIG_LEFT_SEARCH_LEFT + 1)
+                        {
+                            mid_start_left_search_judge = 1;
+                            break;
+                        }
+                    }
         }
-        /* 只允许未锁定的首帧从图像中心补搜，防止锁定后跳到相邻赛道。 */
-        if(mid_start_left_search_judge == 1 && !track_history_ready)
+        if(mid_start_left_search_judge == 1)
         {
             for(uint8 j = CONFIG_MID_WIDTH; j > 0; j--)
             {
-                if(index[i][j - 1] == 0 && index[i][j] == 255 && index[i][j + 1] == 255)
+                if(index[i][j-1]==0 && index[i][j]==255 && index[i][j+1]==255)
                 {
                     left_point = j;
                     left_found = 1;
                     break;
                 }
-                else if(j == 1)
+                else if(j==1)
                 {
                     left_point = 1;
                     break;
                 }
             }
         }
+        /* 右边线按相反方向搜索，并在局部搜索失败后从中心补搜。 */
+            uint8 right_search_judge = 0;
+            uint8 mid_start_right_search_judge = 0;
 
-        /* 右边线按相反方向在上一可信位置附近搜索。 */
-        uint8 right_search_judge = 0;
-        uint8 mid_start_right_search_judge = 0;
-        for(uint8 j = right_point; j > right_point - CONFIG_RIGHT_SEARCH_LEFT; j--)
-        {
-            if(index[i][j - 1] == 255 && index[i][j] == 255 && index[i][j + 1] == 0)
+            for(uint8 j = right_point; j > right_point-CONFIG_RIGHT_SEARCH_LEFT; j--)
             {
-                right_point = j;
-                right_found = 1;
-                break;
-            }
-            else if(j == 1)
-            {
-                right_point = 4;
-                break;
-            }
-            else if(j == right_point - CONFIG_RIGHT_SEARCH_LEFT + 1)
-            {
-                right_search_judge = 1;
-                break;
-            }
-        }
-        if(right_search_judge == 1)
-        {
-            for(uint8 j = right_point; j < right_point + CONFIG_RIGHT_SEARCH_RIGHT; j++)
-            {
-                if(index[i][j - 1] == 255 && index[i][j] == 255 && index[i][j + 1] == 0 && j > 4)
+                if(index[i][j-1]==255 && index[i][j]==255 && index[i][j+1]==0)
                 {
                     right_point = j;
                     right_found = 1;
                     break;
                 }
-                else if(j == MT9V03X_W - 2)
+                else if(j == 1)
                 {
-                    right_point = MT9V03X_W - 2;
-                    mid_start_right_search_judge = 1;
+                    right_point = 4;
                     break;
                 }
-                else if(j == right_point + CONFIG_RIGHT_SEARCH_RIGHT - 1)
+                else if(j == right_point - CONFIG_RIGHT_SEARCH_LEFT + 1)
                 {
-                    mid_start_right_search_judge = 1;
-                    break;
-                }
-            }
-        }
-        if(mid_start_right_search_judge == 1 && !track_history_ready)
-        {
-            for(uint8 j = CONFIG_MID_WIDTH; j < MT9V03X_W - 1; j++)
-            {
-                if(index[i][j - 1] == 255 && index[i][j] == 255 && index[i][j + 1] == 0)
-                {
-                    right_point = j;
-                    right_found = 1;
-                    break;
-                }
-                else if(j == MT9V03X_W - 2)
-                {
-                    right_point = MT9V03X_W - 2;
+                    right_search_judge = 1;
                     break;
                 }
             }
-        }
-
-        /* 两侧都找到后，先检查本帧逐行连续性，再检查上一帧同一行。 */
-        if(left_found && right_found)
-        {
-            row_valid = line_candidate_is_valid(
-                index[i], left_point, right_point,
-                current_reference_left, current_reference_right,
-                current_reference_ready);
-
-            if(row_valid && track_history_ready)
+            if(right_search_judge == 1)
             {
-                row_valid = line_candidate_is_valid(
-                    index[i], left_point, right_point,
-                    previous_left_line_list[i], previous_right_line_list[i], 1);
+                        for(uint8 j = right_point; j < right_point+CONFIG_RIGHT_SEARCH_RIGHT; j++)
+                        {
+                            if(index[i][j-1]==255 && index[i][j]==255 && index[i][j+1]==0 && j > 4)
+                            {
+                                right_point = j;
+                                right_found = 1;
+                                break;
+                            }
+                            else if(j == MT9V03X_W-2)
+                            {
+                                right_point = MT9V03X_W-2;
+                                mid_start_right_search_judge = 1;
+                                break;
+                            }
+                            else if(j == right_point + CONFIG_RIGHT_SEARCH_RIGHT - 1)
+                            {
+                                mid_start_right_search_judge = 1;
+                                break;
+                            }
+                        }
             }
-        }
-
-        if(row_valid)
-        {
-            /* 只有通过双参考过滤的候选才能推进本帧搜索参考。 */
-            current_reference_left = left_point;
-            current_reference_right = right_point;
-            current_reference_ready = 1;
-            line_valid_list[i] = 1;
-            line_valid_count++;
-        }
-        else
-        {
-            /* 无效行不参与控制，只为下一行搜索保留最近可信位置。 */
-            if(current_reference_ready)
+            if(mid_start_right_search_judge == 1)
             {
-                left_point = current_reference_left;
-                right_point = current_reference_right;
+                for(uint8 j = CONFIG_MID_WIDTH; j < MT9V03X_W-1; j++)
+                {
+                    if(index[i][j-1]==255 && index[i][j]==255 && index[i][j+1]==0)
+                    {
+                        right_point = j;
+                        right_found = 1;
+                        break;
+                    }
+                    else if(j==MT9V03X_W-2)
+                    {
+                        right_point = MT9V03X_W-2;
+                        break;
+                    }
+                }
             }
-            else if(track_history_ready)
+            /* 当前行丢线时沿用上一行位置，第一行则退回本帧起点。 */
+            if(!left_found)
             {
-                left_point = previous_left_line_list[i];
-                right_point = previous_right_line_list[i];
+                if(i < CONFIG_SEARCH_START_LINE - 1)
+                {
+                    left_point = left_line_list[i + 1];
+                }
+                else
+                {
+                    left_point = left_jidian;
+                }
             }
-            else
+            if(!right_found)
             {
-                left_point = left_jidian;
-                right_point = right_jidian;
+                if(i < CONFIG_SEARCH_START_LINE - 1)
+                {
+                    right_point = right_line_list[i + 1];
+                }
+                else
+                {
+                    right_point = right_jidian;
+                }
             }
-        }
-
-        left_line_list[i] = Limit_uint8(1, left_point, MT9V03X_W - 2);
-        right_line_list[i] = Limit_uint8(1, right_point, MT9V03X_W - 2);
-        mid_line_list[i] = Limit_uint8(1, (left_line_list[i] + right_line_list[i]) / 2, MT9V03X_W - 2);
-    }
-
-    /* 每帧保存完整边线。首次得到足够可信行后永久锁定，运行中不自动换道。 */
-    for(uint8 i = 0; i < MT9V03X_H; i++)
-    {
-        previous_left_line_list[i] = left_line_list[i];
-        previous_right_line_list[i] = right_line_list[i];
-    }
-    if(line_valid_count >= CONFIG_LINE_MIN_VALID_ROWS)
-    {
-        track_history_ready = 1;
+            left_line_list[i]=Limit_uint8(1,left_point,MT9V03X_W-2);
+            right_line_list[i]=Limit_uint8(1,right_point,MT9V03X_W-2);
+            mid_line_list[i]=Limit_uint8(1,(left_line_list[i]+right_line_list[i])/2,MT9V03X_W-2);
     }
 }
 
@@ -665,34 +515,17 @@ uint8 last_mid_line = CONFIG_MID_WIDTH;
  */
 uint8 find_mid_line_weight(void)
 {
-    uint8 mid_line_value;
-    uint8 mid_line;
+    uint8 mid_line_value = CONFIG_MID_WIDTH;
+    uint8 mid_line = CONFIG_MID_WIDTH;
     uint32 weight_midline_sum = 0;
     uint32 weight_sum = 0;
-
-    /* 有效行太少时保持上一帧控制中线，避免偶发干扰直接打舵。 */
-    if(line_valid_count < CONFIG_LINE_MIN_VALID_ROWS)
+    for(uint8 i=MT9V03X_H - 1;i>CONFIG_SEARCH_END_LINE;i--)
     {
-        return last_mid_line;
-    }
-
-    for(uint8 i = MT9V03X_H - 1; i > CONFIG_SEARCH_END_LINE; i--)
-    {
-        if(line_valid_list[i])
-        {
             weight_midline_sum += mid_line_list[i] * mid_weight_list[i];
             weight_sum += mid_weight_list[i];
-        }
     }
-
-    /* 防止配置异常或有效行权重全为零时发生除零。 */
-    if(weight_sum == 0)
-    {
-        return last_mid_line;
-    }
-
-    mid_line = (uint8)(weight_midline_sum / weight_sum);
-    mid_line_value = (uint8)(last_mid_line * 0.2f + mid_line * 0.8f);
-    last_mid_line = mid_line_value;
+    mid_line=(uint8)(weight_midline_sum/weight_sum);
+    mid_line_value=last_mid_line*0.2+mid_line*0.8;
+    last_mid_line=mid_line_value;
     return mid_line_value;
 }
