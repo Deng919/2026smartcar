@@ -48,8 +48,7 @@ float my_abs_float(float i)
  */
 void dynamic_pid_value_set(void)
 {
-    /* 动态增益与实际舵机目标保持一致，电机控制仍读取 final_mid_line。 */
-    servo_pid.Kp=Kp_base+my_abs_float(CONFIG_MID_WIDTH-steer_mid_line)*CONFIG_SERVO_KP_DYNAMIC_GAIN;
+    servo_pid.Kp=Kp_base+my_abs_float(CONFIG_MID_WIDTH-final_mid_line)*CONFIG_SERVO_KP_DYNAMIC_GAIN;
     //servo_pid.Kp=Kp_base+(CONFIG_MID_WIDTH-final_mid_line)*(CONFIG_MID_WIDTH-final_mid_line) * 0.0015;
     servo_pid.Ki=0;
     servo_pid.Kd=Kd_base;

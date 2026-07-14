@@ -5,7 +5,6 @@
  *      Author: 珩泊霄
  */
 #include "image.h"
-#include "motor.h"
 /*
  * 图像处理模块。
  * 主循环每收到一帧完整图像后，依次完成阈值计算、二值化、起点搜索、
@@ -502,131 +501,11 @@ void draw_line(void)
     }
 }
 
-/* STEERING_LOOKAHEAD_TEST_BEGIN */
-/** 软前瞻单个速度档位的全部可调参数。 */
-typedef struct steer_lookahead_profile
-{
-    uint8 far_start;   /**< 远处中线统计起始行。 */
-    uint8 far_end;     /**< 远处中线统计结束行。 */
-    float gain;        /**< 远近中线差值转换为转向修正的比例。 */
-    int max_offset;    /**< 前瞻最多允许修正的像素数。 */
-    float filter_old;  /**< 上一帧结果在低通滤波中的权重。 */
-} steer_lookahead_profile;
-
-/**
- * @brief 根据当前斜坡目标速度选择前瞻参数。
- * @param speed 电机控制当前实际使用的斜坡目标速度。
- * @return 对应低速、中速或高速档的完整前瞻参数。
- * @note 只依据速度选择参数，不修改电机或图像状态。
- */
-static steer_lookahead_profile steer_lookahead_select_profile(int speed)
-{
-    steer_lookahead_profile profile;
-
-    if(speed > CONFIG_STEER_LOOKAHEAD_SPEED_HIGH)
-    {
-        profile.far_start = CONFIG_STEER_LOOKAHEAD_HIGH_FAR_START;
-        profile.far_end = CONFIG_STEER_LOOKAHEAD_HIGH_FAR_END;
-        profile.gain = CONFIG_STEER_LOOKAHEAD_HIGH_GAIN;
-        profile.max_offset = CONFIG_STEER_LOOKAHEAD_HIGH_MAX_OFFSET;
-        profile.filter_old = CONFIG_STEER_LOOKAHEAD_HIGH_FILTER_OLD;
-    }
-    else if(speed >= CONFIG_STEER_LOOKAHEAD_SPEED_MID)
-    {
-        profile.far_start = CONFIG_STEER_LOOKAHEAD_MID_FAR_START;
-        profile.far_end = CONFIG_STEER_LOOKAHEAD_MID_FAR_END;
-        profile.gain = CONFIG_STEER_LOOKAHEAD_MID_GAIN;
-        profile.max_offset = CONFIG_STEER_LOOKAHEAD_MID_MAX_OFFSET;
-        profile.filter_old = CONFIG_STEER_LOOKAHEAD_MID_FILTER_OLD;
-    }
-    else
-    {
-        profile.far_start = CONFIG_STEER_LOOKAHEAD_FAR_START;
-        profile.far_end = CONFIG_STEER_LOOKAHEAD_FAR_END;
-        profile.gain = CONFIG_STEER_LOOKAHEAD_GAIN;
-        profile.max_offset = CONFIG_STEER_LOOKAHEAD_MAX_OFFSET;
-        profile.filter_old = CONFIG_STEER_LOOKAHEAD_FILTER_OLD;
-    }
-    return profile;
-}
-
-/** 计算指定行区间的平均中线，区间端点均参与计算。 */
-static uint8 image_mid_line_average(const uint8 *lines, uint8 start, uint8 end)
-{
-    unsigned int sum = 0;
-    unsigned int count = 0;
-
-    for(uint8 row = start; row <= end; row++)
-    {
-        sum += lines[row];
-        count++;
-    }
-    return (uint8)(sum / count);
-}
-
-/** 返回带符号整数的绝对值。 */
-static int steer_lookahead_abs(int value)
-{
-    return value >= 0 ? value : -value;
-}
-
-/**
- * @brief 将远近中线形成的航向趋势转换为受限、滤波后的舵机目标中线。
- * @param final_mid 原有加权中线，继续作为稳定的基础位置。
- * @param near_mid 近处平均中线。
- * @param far_mid 远处平均中线。
- * @param previous_mid 上一帧舵机专用中线。
- * @param profile 当前速度档位的前瞻参数。
- * @return 本帧舵机专用中线。
- */
-static uint8 steer_lookahead_calculate(
-    uint8 final_mid,
-    uint8 near_mid,
-    uint8 far_mid,
-    uint8 previous_mid,
-    steer_lookahead_profile profile)
-{
-    int heading_error = (int)far_mid - (int)near_mid;
-    int offset = 0;
-    int target_mid = final_mid;
-
-    /* 差值过大通常来自远处围栏、相邻赛道或丢线，本帧只使用原有中线。 */
-    if(steer_lookahead_abs(heading_error) <= CONFIG_STEER_LOOKAHEAD_MAX_HEADING)
-    {
-        offset = (int)(heading_error * profile.gain);
-        if(offset > profile.max_offset)
-        {
-            offset = profile.max_offset;
-        }
-        else if(offset < -profile.max_offset)
-        {
-            offset = -profile.max_offset;
-        }
-        target_mid += offset;
-    }
-
-    if(target_mid < 1)
-    {
-        target_mid = 1;
-    }
-    else if(target_mid > MT9V03X_W - 2)
-    {
-        target_mid = MT9V03X_W - 2;
-    }
-
-    return (uint8)(
-        previous_mid * profile.filter_old +
-        target_mid * (1.0f - profile.filter_old));
-}
-/* STEERING_LOOKAHEAD_TEST_END */
-
 /* ==================== 加权中线计算 ==================== */
 
 /** 各图像行的中线权重，数值来自 config.h。 */
 uint8 mid_weight_list[120]=CONFIG_MID_WEIGHT_LIST;
 uint8 final_mid_line = CONFIG_MID_WIDTH;
-/** 舵机专用软前瞻中线；电机仍使用 final_mid_line。 */
-uint8 steer_mid_line = CONFIG_MID_WIDTH;
 uint8 last_mid_line = CONFIG_MID_WIDTH;
 /**
  * @brief 计算供转向和弯道降速使用的加权中线。
@@ -640,8 +519,6 @@ uint8 find_mid_line_weight(void)
     uint8 mid_line = CONFIG_MID_WIDTH;
     uint32 weight_midline_sum = 0;
     uint32 weight_sum = 0;
-    /* 使用电机当前实际爬升到的速度，而不是尚未达到的最终目标速度。 */
-    steer_lookahead_profile profile = steer_lookahead_select_profile(Motor_GetRampSpeed());
     for(uint8 i=MT9V03X_H - 1;i>CONFIG_SEARCH_END_LINE;i--)
     {
             weight_midline_sum += mid_line_list[i] * mid_weight_list[i];
@@ -649,13 +526,6 @@ uint8 find_mid_line_weight(void)
     }
     mid_line=(uint8)(weight_midline_sum/weight_sum);
     mid_line_value=last_mid_line*0.2+mid_line*0.8;
-    /* 电机保留原中线；舵机按当前速度档位观察更远位置并调整响应强度。 */
-    steer_mid_line = steer_lookahead_calculate(
-        mid_line_value,
-        image_mid_line_average(mid_line_list, CONFIG_STEER_LOOKAHEAD_NEAR_START, CONFIG_STEER_LOOKAHEAD_NEAR_END),
-        image_mid_line_average(mid_line_list, profile.far_start, profile.far_end),
-        steer_mid_line,
-        profile);
     last_mid_line=mid_line_value;
     return mid_line_value;
 }

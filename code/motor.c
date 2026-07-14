@@ -19,7 +19,7 @@ motorl motor_r;
 static int motor_pid_duty_l;
 static int motor_pid_duty_r;
 /* 当前基础目标速度；仅用于直道与弯道速度档位之间的斜坡过渡。 */
-static volatile int motor_ramp_speed;
+static int motor_ramp_speed;
 
 /* ==================== 电机初始化与直接输出 ==================== */
 
@@ -148,16 +148,6 @@ static int motor_speed_ramp_diff_limit(int speed)
     return CONFIG_MOTOR_SPEED_LIMIT;
 }
 /* MOTOR_SPEED_RAMP_TEST_END */
-
-/**
- * @brief 获取电机控制当前实际使用的斜坡目标速度。
- * @return 当前斜坡速度；停车时为 0。
- * @note 该接口只读，图像模块仅用它选择前瞻档位，不改变电机控制状态。
- */
-int Motor_GetRampSpeed(void)
-{
-    return motor_ramp_speed;
-}
 
 /* ==================== 目标速度与差速调度 ==================== */
 
