@@ -18,6 +18,8 @@ motorl motor_r;
 /* 将 PID 修正量与前馈基础占空比分开保存。 */
 static int motor_pid_duty_l;
 static int motor_pid_duty_r;
+/* 当前基础目标速度；仅用于直道与弯道速度档位之间的斜坡过渡。 */
+static int motor_ramp_speed;
 
 /* ==================== 电机初始化与直接输出 ==================== */
 
@@ -103,6 +105,50 @@ void Encode_Data_Get(void)
     encoder_clear_count(TIM6_ENCODER);
 }
 
+/* MOTOR_SPEED_RAMP_TEST_BEGIN */
+/**
+ * @brief 计算基础目标速度在下一个控制周期的斜坡值。
+ * @param current 当前斜坡速度。
+ * @param target 直道或弯道速度调度给出的目标值。
+ * @return 向目标靠近一步并钳位后的速度。
+ * @note 加速使用较小步长以减小起步冲击，减速使用较大步长以便及时入弯。
+ */
+static int motor_target_speed_ramp_next(int current, int target)
+{
+    if(current < target)
+    {
+        current += CONFIG_MOTOR_ACCEL_STEP;
+        if(current > target)
+        {
+            current = target;
+        }
+    }
+    else if(current > target)
+    {
+        current -= CONFIG_MOTOR_DECEL_STEP;
+        if(current < target)
+        {
+            current = target;
+        }
+    }
+    return current;
+}
+
+/** 起步阶段把差速上限压到当前车速以内，防止任一车轮目标反向。 */
+static int motor_speed_ramp_diff_limit(int speed)
+{
+    if(speed <= 0)
+    {
+        return 0;
+    }
+    if(speed < CONFIG_MOTOR_SPEED_LIMIT)
+    {
+        return speed;
+    }
+    return CONFIG_MOTOR_SPEED_LIMIT;
+}
+/* MOTOR_SPEED_RAMP_TEST_END */
+
 /* ==================== 目标速度与差速调度 ==================== */
 
 /**
@@ -150,10 +196,14 @@ void car_start(void)
                target_speed = CONFIG_MOTOR_CURVE_SPEED_MID;
            }
 
-           Final_Motor_Control(target_speed,CONFIG_MOTOR_SPEED_LIMIT);
+           /* 速度档位先经过斜坡，再进入原有左右轮差速控制。 */
+           motor_ramp_speed = motor_target_speed_ramp_next(motor_ramp_speed, target_speed);
+           Final_Motor_Control(motor_ramp_speed, motor_speed_ramp_diff_limit(motor_ramp_speed));
         }
         else
         {
+            /* 停车立即切断输出，并清零斜坡，保证下次从 0 平稳起步。 */
+            motor_ramp_speed = 0;
             Motor_Control(0,0);
         }
     }

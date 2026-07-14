@@ -48,15 +48,18 @@
 #define CONFIG_MOTOR_I_LIMIT              30
 #define CONFIG_MOTOR_PWM_LIMIT            2500
 /* 按键启动后的小车目标速度和左右轮最大速度差。 */
-#define CONFIG_MOTOR_TARGET_SPEED         140
+#define CONFIG_MOTOR_TARGET_SPEED         130
 #define CONFIG_MOTOR_SPEED_LIMIT          25
 /* 根据中线绝对偏差选择弯道速度档位。 */
 #define CONFIG_MOTOR_CURVE_ERROR_MID      10
 #define CONFIG_MOTOR_CURVE_ERROR_HIGH     20
-#define CONFIG_MOTOR_CURVE_SPEED_MID      115
+#define CONFIG_MOTOR_CURVE_SPEED_MID      110
 #define CONFIG_MOTOR_CURVE_SPEED_LOW      115
 /* 每个编码器速度单位对应的前馈占空比增量。 */
 #define CONFIG_MOTOR_FEEDFORWARD_GAIN     8.0f
+/* 基础目标速度斜坡：缓慢加速、较快减速，单位为每个电机控制周期。 */
+#define CONFIG_MOTOR_ACCEL_STEP           2
+#define CONFIG_MOTOR_DECEL_STEP           4
 
 /* ==================== 控制周期 ==================== */
 /* 舵机控制中断周期和编码器/电机控制中断周期，单位：毫秒。 */
