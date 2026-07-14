@@ -56,6 +56,8 @@ void Speed_Set(pwm_channel_enum pin1, gpio_pin_enum pin2, int speed, uint8 just,
 
 /** 读取、滤波并清零左右轮编码器本周期计数。 */
 void Encode_Data_Get(void);
+/** 只读获取当前斜坡目标速度，供前瞻转向选择速度档位。 */
+int Motor_GetRampSpeed(void);
 /** 根据中线偏差生成左右轮差速目标，并进入速度闭环。 */
 void Final_Motor_Control(int speed, int limit);
 /** 处理 KEY_1 启停状态，并根据弯道误差选择目标速度。 */

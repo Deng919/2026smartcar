@@ -25,10 +25,24 @@ typedef uint8_t uint8;
 
 #define MT9V03X_H 120
 #define MT9V03X_W 188
+#define CONFIG_STEER_LOOKAHEAD_FAR_START 60
+#define CONFIG_STEER_LOOKAHEAD_FAR_END 80
 #define CONFIG_STEER_LOOKAHEAD_GAIN 0.35f
 #define CONFIG_STEER_LOOKAHEAD_MAX_OFFSET 10
 #define CONFIG_STEER_LOOKAHEAD_MAX_HEADING 25
 #define CONFIG_STEER_LOOKAHEAD_FILTER_OLD 0.3f
+#define CONFIG_STEER_LOOKAHEAD_SPEED_MID 115
+#define CONFIG_STEER_LOOKAHEAD_SPEED_HIGH 140
+#define CONFIG_STEER_LOOKAHEAD_MID_FAR_START 55
+#define CONFIG_STEER_LOOKAHEAD_MID_FAR_END 75
+#define CONFIG_STEER_LOOKAHEAD_MID_GAIN 0.45f
+#define CONFIG_STEER_LOOKAHEAD_MID_MAX_OFFSET 12
+#define CONFIG_STEER_LOOKAHEAD_MID_FILTER_OLD 0.2f
+#define CONFIG_STEER_LOOKAHEAD_HIGH_FAR_START 45
+#define CONFIG_STEER_LOOKAHEAD_HIGH_FAR_END 65
+#define CONFIG_STEER_LOOKAHEAD_HIGH_GAIN 0.55f
+#define CONFIG_STEER_LOOKAHEAD_HIGH_MAX_OFFSET 15
+#define CONFIG_STEER_LOOKAHEAD_HIGH_FILTER_OLD 0.1f
 ''' + match.group(1) + r'''
 
 static int expect(const char *name, int actual, int expected)
@@ -44,15 +58,37 @@ static int expect(const char *name, int actual, int expected)
 int main(void)
 {
     uint8 lines[MT9V03X_H];
+    steer_lookahead_profile profile;
     int failed = 0;
 
-    failed += expect("straight", steer_lookahead_calculate(93, 93, 93, 93), 93);
-    failed += expect("right_curve", steer_lookahead_calculate(93, 93, 103, 93), 95);
-    failed += expect("left_curve", steer_lookahead_calculate(93, 93, 83, 93), 90);
-    failed += expect("abnormal_heading", steer_lookahead_calculate(93, 93, 120, 93), 93);
-    failed += expect("upper_bound", steer_lookahead_calculate(185, 93, 103, 186), 186);
-    failed += expect("lower_bound", steer_lookahead_calculate(1, 93, 83, 1), 1);
-    failed += expect("low_pass", steer_lookahead_calculate(100, 93, 93, 80), 94);
+    profile = steer_lookahead_select_profile(100);
+    failed += expect("low_far_start", profile.far_start, 60);
+    failed += expect("low_far_end", profile.far_end, 80);
+    failed += expect("low_gain", (int)(profile.gain * 100.0f + 0.5f), 35);
+
+    profile = steer_lookahead_select_profile(120);
+    failed += expect("mid_far_start", profile.far_start, 55);
+    failed += expect("mid_far_end", profile.far_end, 75);
+    failed += expect("mid_gain", (int)(profile.gain * 100.0f + 0.5f), 45);
+
+    profile = steer_lookahead_select_profile(150);
+    failed += expect("high_far_start", profile.far_start, 45);
+    failed += expect("high_far_end", profile.far_end, 65);
+    failed += expect("high_gain", (int)(profile.gain * 100.0f + 0.5f), 55);
+
+    profile = steer_lookahead_select_profile(100);
+    failed += expect("straight", steer_lookahead_calculate(93, 93, 93, 93, profile), 93);
+    failed += expect("low_right_curve", steer_lookahead_calculate(93, 93, 103, 93, profile), 95);
+    failed += expect("left_curve", steer_lookahead_calculate(93, 93, 83, 93, profile), 90);
+    failed += expect("abnormal_heading", steer_lookahead_calculate(93, 93, 120, 93, profile), 93);
+    failed += expect("upper_bound", steer_lookahead_calculate(185, 93, 103, 186, profile), 186);
+    failed += expect("lower_bound", steer_lookahead_calculate(1, 93, 83, 1, profile), 1);
+    failed += expect("low_pass", steer_lookahead_calculate(100, 93, 93, 80, profile), 94);
+
+    profile = steer_lookahead_select_profile(120);
+    failed += expect("mid_right_curve", steer_lookahead_calculate(93, 93, 103, 93, profile), 96);
+    profile = steer_lookahead_select_profile(150);
+    failed += expect("high_right_curve", steer_lookahead_calculate(93, 93, 103, 93, profile), 97);
 
     memset(lines, 0, sizeof(lines));
     for(int row = 60; row <= 80; ++row) lines[row] = 100;

@@ -37,15 +37,31 @@
 #define CONFIG_SERVO_KP_DYNAMIC_GAIN      0.045f
 #define CONFIG_SERVO_KD_BASE              5.0f
 #define CONFIG_SERVO_LOW_PASS             0.8f
-/* 软前瞻转向：远近中线行区间、修正比例、异常保护、限幅和滤波。 */
-#define CONFIG_STEER_LOOKAHEAD_NEAR_START  96
-#define CONFIG_STEER_LOOKAHEAD_NEAR_END    115
-#define CONFIG_STEER_LOOKAHEAD_FAR_START   60
-#define CONFIG_STEER_LOOKAHEAD_FAR_END     80
-#define CONFIG_STEER_LOOKAHEAD_GAIN        0.35f
-#define CONFIG_STEER_LOOKAHEAD_MAX_OFFSET  10
-#define CONFIG_STEER_LOOKAHEAD_MAX_HEADING 25
-#define CONFIG_STEER_LOOKAHEAD_FILTER_OLD  0.3f
+/* 软前瞻转向：近处区间固定，远处区间和修正强度随当前斜坡速度变化。 */
+#define CONFIG_STEER_LOOKAHEAD_NEAR_START       96
+#define CONFIG_STEER_LOOKAHEAD_NEAR_END         115
+/* 低速档：保持原有柔和前瞻，避免低速时转向过度。 */
+#define CONFIG_STEER_LOOKAHEAD_FAR_START        60
+#define CONFIG_STEER_LOOKAHEAD_FAR_END          80
+#define CONFIG_STEER_LOOKAHEAD_GAIN             0.35f
+#define CONFIG_STEER_LOOKAHEAD_MAX_OFFSET       10
+#define CONFIG_STEER_LOOKAHEAD_FILTER_OLD       0.3f
+/* 中速档：提前观察，并适度增加前瞻修正量。 */
+#define CONFIG_STEER_LOOKAHEAD_SPEED_MID        115
+#define CONFIG_STEER_LOOKAHEAD_MID_FAR_START    55
+#define CONFIG_STEER_LOOKAHEAD_MID_FAR_END      75
+#define CONFIG_STEER_LOOKAHEAD_MID_GAIN         0.45f
+#define CONFIG_STEER_LOOKAHEAD_MID_MAX_OFFSET   12
+#define CONFIG_STEER_LOOKAHEAD_MID_FILTER_OLD   0.2f
+/* 高速档：观察更远、滤波更轻，优先提高高速入弯响应。 */
+#define CONFIG_STEER_LOOKAHEAD_SPEED_HIGH       140
+#define CONFIG_STEER_LOOKAHEAD_HIGH_FAR_START   45
+#define CONFIG_STEER_LOOKAHEAD_HIGH_FAR_END     65
+#define CONFIG_STEER_LOOKAHEAD_HIGH_GAIN        0.55f
+#define CONFIG_STEER_LOOKAHEAD_HIGH_MAX_OFFSET  15
+#define CONFIG_STEER_LOOKAHEAD_HIGH_FILTER_OLD  0.1f
+/* 远近中线差值过大时视为围栏、邻道或丢线干扰，不叠加前瞻。 */
+#define CONFIG_STEER_LOOKAHEAD_MAX_HEADING      25
 
 /* ==================== 电机参数 ==================== */
 /* 左右电机速度环 PID 参数。 */
@@ -55,15 +71,15 @@
 #define CONFIG_MOTOR_LOW_PASS             1.0f
 /* 积分项限幅和电机 PWM 输出限幅。 */
 #define CONFIG_MOTOR_I_LIMIT              30
-#define CONFIG_MOTOR_PWM_LIMIT            2500
+#define CONFIG_MOTOR_PWM_LIMIT            2700
 /* 按键启动后的小车目标速度和左右轮最大速度差。 */
-#define CONFIG_MOTOR_TARGET_SPEED         140
+#define CONFIG_MOTOR_TARGET_SPEED         130
 #define CONFIG_MOTOR_SPEED_LIMIT          25
 /* 根据中线绝对偏差选择弯道速度档位。 */
 #define CONFIG_MOTOR_CURVE_ERROR_MID      10
 #define CONFIG_MOTOR_CURVE_ERROR_HIGH     20
-#define CONFIG_MOTOR_CURVE_SPEED_MID      115
-#define CONFIG_MOTOR_CURVE_SPEED_LOW      110
+#define CONFIG_MOTOR_CURVE_SPEED_MID      120
+#define CONFIG_MOTOR_CURVE_SPEED_LOW      115
 /* 每个编码器速度单位对应的前馈占空比增量。 */
 #define CONFIG_MOTOR_FEEDFORWARD_GAIN     8.0f
 /* 基础目标速度斜坡：缓慢加速、较快减速，单位为每个电机控制周期。 */
