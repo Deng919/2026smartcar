@@ -55,7 +55,8 @@ IFX_INTERRUPT(cc60_pit_ch0_isr, 0, CCU6_0_CH0_ISR_PRIORITY)
     pit_clear_flag(CCU60_CH0);
     // CH0 是固定周期的舵机控制环。
     dynamic_pid_value_set();
-    servo(final_mid_line);
+    /* 舵机使用软前瞻中线，电机继续使用原始加权中线。 */
+    servo(steer_mid_line);
 
 }
 

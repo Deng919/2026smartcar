@@ -25,8 +25,10 @@ extern uint8 right_line_list[MT9V03X_H];
 extern uint8 mid_line_list[MT9V03X_H];
 /** 当前帧由 Otsu 方法计算得到的灰度阈值。 */
 extern uint8 img_threshold;
-/** 多行加权并滤波后的最终中线横坐标，供舵机和电机控制使用。 */
+/** 多行加权并滤波后的最终中线横坐标，继续供电机差速和速度调度使用。 */
 extern uint8 final_mid_line;
+/** 在最终中线上叠加软前瞻修正后的舵机专用中线。 */
+extern uint8 steer_mid_line;
 /** TFT 图像显示开关；只控制绘图，关闭后图像识别仍持续运行。 */
 extern volatile uint8 image_display_enable;
 

@@ -501,11 +501,82 @@ void draw_line(void)
     }
 }
 
+/* STEERING_LOOKAHEAD_TEST_BEGIN */
+/** 计算指定行区间的平均中线，区间端点均参与计算。 */
+static uint8 image_mid_line_average(const uint8 *lines, uint8 start, uint8 end)
+{
+    unsigned int sum = 0;
+    unsigned int count = 0;
+
+    for(uint8 row = start; row <= end; row++)
+    {
+        sum += lines[row];
+        count++;
+    }
+    return (uint8)(sum / count);
+}
+
+/** 返回带符号整数的绝对值。 */
+static int steer_lookahead_abs(int value)
+{
+    return value >= 0 ? value : -value;
+}
+
+/**
+ * @brief 将远近中线形成的航向趋势转换为受限、滤波后的舵机目标中线。
+ * @param final_mid 原有加权中线，继续作为稳定的基础位置。
+ * @param near_mid 近处平均中线。
+ * @param far_mid 远处平均中线。
+ * @param previous_mid 上一帧舵机专用中线。
+ * @return 本帧舵机专用中线。
+ */
+static uint8 steer_lookahead_calculate(
+    uint8 final_mid,
+    uint8 near_mid,
+    uint8 far_mid,
+    uint8 previous_mid)
+{
+    int heading_error = (int)far_mid - (int)near_mid;
+    int offset = 0;
+    int target_mid = final_mid;
+
+    /* 差值过大通常来自远处围栏或丢线，本帧只使用原有中线。 */
+    if(steer_lookahead_abs(heading_error) <= CONFIG_STEER_LOOKAHEAD_MAX_HEADING)
+    {
+        offset = (int)(heading_error * CONFIG_STEER_LOOKAHEAD_GAIN);
+        if(offset > CONFIG_STEER_LOOKAHEAD_MAX_OFFSET)
+        {
+            offset = CONFIG_STEER_LOOKAHEAD_MAX_OFFSET;
+        }
+        else if(offset < -CONFIG_STEER_LOOKAHEAD_MAX_OFFSET)
+        {
+            offset = -CONFIG_STEER_LOOKAHEAD_MAX_OFFSET;
+        }
+        target_mid += offset;
+    }
+
+    if(target_mid < 1)
+    {
+        target_mid = 1;
+    }
+    else if(target_mid > MT9V03X_W - 2)
+    {
+        target_mid = MT9V03X_W - 2;
+    }
+
+    return (uint8)(
+        previous_mid * CONFIG_STEER_LOOKAHEAD_FILTER_OLD +
+        target_mid * (1.0f - CONFIG_STEER_LOOKAHEAD_FILTER_OLD));
+}
+/* STEERING_LOOKAHEAD_TEST_END */
+
 /* ==================== 加权中线计算 ==================== */
 
 /** 各图像行的中线权重，数值来自 config.h。 */
 uint8 mid_weight_list[120]=CONFIG_MID_WEIGHT_LIST;
 uint8 final_mid_line = CONFIG_MID_WIDTH;
+/** 舵机专用软前瞻中线；电机仍使用 final_mid_line。 */
+uint8 steer_mid_line = CONFIG_MID_WIDTH;
 uint8 last_mid_line = CONFIG_MID_WIDTH;
 /**
  * @brief 计算供转向和弯道降速使用的加权中线。
@@ -526,6 +597,12 @@ uint8 find_mid_line_weight(void)
     }
     mid_line=(uint8)(weight_midline_sum/weight_sum);
     mid_line_value=last_mid_line*0.2+mid_line*0.8;
+    /* 电机保留原中线；舵机额外使用远近中线趋势进行有限前瞻。 */
+    steer_mid_line = steer_lookahead_calculate(
+        mid_line_value,
+        image_mid_line_average(mid_line_list, CONFIG_STEER_LOOKAHEAD_NEAR_START, CONFIG_STEER_LOOKAHEAD_NEAR_END),
+        image_mid_line_average(mid_line_list, CONFIG_STEER_LOOKAHEAD_FAR_START, CONFIG_STEER_LOOKAHEAD_FAR_END),
+        steer_mid_line);
     last_mid_line=mid_line_value;
     return mid_line_value;
 }
