@@ -35,6 +35,7 @@
 
 #include "isr_config.h"
 #include "isr.h"
+#include "vofa.h"
 /*
  * CPU0 中断服务模块。
  * 已启用的应用中断负责舵机周期控制、编码器与电机周期控制、摄像头场同步、
@@ -77,6 +78,8 @@ IFX_INTERRUPT(cc60_pit_ch1_isr, 0, CCU6_0_CH1_ISR_PRIORITY)
         image_display_enable = !image_display_enable;
     }
     car_start();
+    /* 只产生低频上传标志，实际串口发送由 CPU0 主循环完成。 */
+    vofa_control_tick();
 }
 
 /** @brief CCU61 CH0 预留周期中断，当前仅清除中断标志。 */

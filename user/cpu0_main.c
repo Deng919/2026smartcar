@@ -34,6 +34,7 @@
 ********************************************************************************************************************/
 #include "zf_common_headfile.h"
 #include "config.h"
+#include "vofa.h"
 /*
  * CPU0 应用主循环。
  * 启动阶段初始化摄像头、显示、舵机、电机、编码器、按键和两个控制周期；
@@ -95,6 +96,9 @@ int core0_main(void)
             }
             last_image_display_enable = display_enable;
         }
+
+        /* VOFA+ 串口收发放在主循环，避免阻塞控制中断。 */
+        vofa_process();
 
     }
 }

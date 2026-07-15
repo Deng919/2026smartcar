@@ -75,5 +75,6 @@ void servo(uint8 mid)
     {
         temp1=CONFIG_SERVO_PWM_MIDDLE+CONFIG_SERVO_OUTPUT_LIMIT;
     }
+    pwm=(uint16)temp1;
     pwm_set_duty(ATOM0_CH1_P33_9,temp1);
 }

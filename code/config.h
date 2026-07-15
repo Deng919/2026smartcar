@@ -33,26 +33,30 @@
 /* 闭环舵机输出相对于中值的最大偏差。 */
 #define CONFIG_SERVO_OUTPUT_LIMIT         80
 /* 舵机 PID：基础 Kp、动态 Kp 增益、Kd 和微分低通系数。 */
-#define CONFIG_SERVO_KP_BASE              0.7f
+#define CONFIG_SERVO_KP_BASE              0.5f
 #define CONFIG_SERVO_KP_DYNAMIC_GAIN      0.045f
-#define CONFIG_SERVO_KD_BASE              5.0f
+#define CONFIG_SERVO_KD_BASE              3.8f
 #define CONFIG_SERVO_LOW_PASS             0.8f
+
 /* ==================== 电机参数 ==================== */
 /* 左右电机速度环 PID 参数。 */
-#define CONFIG_MOTOR_PID_KP               8.5f
-#define CONFIG_MOTOR_PID_KI               1.2f
+#define CONFIG_MOTOR_PID_KP               5.0f
+#define CONFIG_MOTOR_PID_KI               0.3f
 #define CONFIG_MOTOR_PID_KD               0.0f
 #define CONFIG_MOTOR_LOW_PASS             1.0f
+/* 编码器速度一阶滤波：历史值 60%，当前采样 40%。 */
+#define CONFIG_ENCODER_FILTER_HISTORY     0.6f
+#define CONFIG_ENCODER_FILTER_CURRENT     0.4f
 /* 积分项限幅和电机 PWM 输出限幅。 */
 #define CONFIG_MOTOR_I_LIMIT              30
-#define CONFIG_MOTOR_PWM_LIMIT            2700
+#define CONFIG_MOTOR_PWM_LIMIT            2500
 /* 按键启动后的小车目标速度和左右轮最大速度差。 */
 #define CONFIG_MOTOR_TARGET_SPEED         130
 #define CONFIG_MOTOR_SPEED_LIMIT          25
 /* 根据中线绝对偏差选择弯道速度档位。 */
 #define CONFIG_MOTOR_CURVE_ERROR_MID      10
 #define CONFIG_MOTOR_CURVE_ERROR_HIGH     20
-#define CONFIG_MOTOR_CURVE_SPEED_MID      115
+#define CONFIG_MOTOR_CURVE_SPEED_MID      110
 #define CONFIG_MOTOR_CURVE_SPEED_LOW      115
 /* 每个编码器速度单位对应的前馈占空比增量。 */
 #define CONFIG_MOTOR_FEEDFORWARD_GAIN     8.0f

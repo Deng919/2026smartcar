@@ -95,12 +95,14 @@ void Encoder_Init(void)
 void Encode_Data_Get(void)
 {
     motor_l.encoder_raw=encoder_get_count(TIM5_ENCODER);
-    motor_l.encoder_speed=motor_l.encoder_speed*0.2f+motor_l.encoder_raw*0.8f;
+    motor_l.encoder_speed=motor_l.encoder_speed*CONFIG_ENCODER_FILTER_HISTORY
+                         +motor_l.encoder_raw*CONFIG_ENCODER_FILTER_CURRENT;
     motor_l.total_encoder+=motor_l.encoder_raw;
     encoder_clear_count(TIM5_ENCODER);
 
     motor_r.encoder_raw=-encoder_get_count(TIM6_ENCODER);
-    motor_r.encoder_speed=motor_r.encoder_speed*0.2f+motor_r.encoder_raw*0.8f;
+    motor_r.encoder_speed=motor_r.encoder_speed*CONFIG_ENCODER_FILTER_HISTORY
+                         +motor_r.encoder_raw*CONFIG_ENCODER_FILTER_CURRENT;
     motor_r.total_encoder+=motor_r.encoder_raw;
     encoder_clear_count(TIM6_ENCODER);
 }

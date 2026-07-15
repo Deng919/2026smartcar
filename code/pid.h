@@ -48,6 +48,9 @@ typedef struct PID
 extern struct PID servo_pid;
 extern struct PID motor_pid_l;
 extern struct PID motor_pid_r;
+/** 舵机动态 PD 的运行时基础参数，可由 VOFA+ 在线修改。 */
+extern float Kp_base;
+extern float Kd_base;
 
 /* ==================== PID 计算接口 ==================== */
 
